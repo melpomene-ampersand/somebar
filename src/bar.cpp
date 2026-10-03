@@ -81,6 +81,12 @@ void BarComponent::setText(const std::string& text)
 	pango_layout_set_text(pangoLayout.get(), _text->c_str(), _text->size());
 }
 
+void BarComponent::setMarkup(const std::string& text)
+{
+	_text = std::make_unique<std::string>(text);
+	pango_layout_set_markup(pangoLayout.get(), _text->c_str(), _text->size());
+}
+
 Bar::Bar()
 {
 	_pangoContext.reset(pango_font_map_create_context(pango_cairo_font_map_get_default()));
@@ -140,7 +146,29 @@ void Bar::setTag(int tag, int state, int numClients, int focusedClient)
 	t.state = state;
 	t.numClients = numClients;
 	t.focusedClient = focusedClient;
+
+	std::string baseName = tagNames[tag]; // e.g., "  1  "
+
+	if (numClients > 0) {
+		// If the string has a trailing space, drop it to make room for the asterisk
+		if (!baseName.empty() && baseName.back() == ' ') {
+			baseName.pop_back(); // "  1  " becomes "  1 "
+		}
+		t.component.setText(baseName + "﹡"); // Becomes "  1 *" (Perfect matching character length!)
+	} else {
+		t.component.setText(baseName);
+	}
 }
+
+
+
+/*void Bar::setTag(int tag, int state, int numClients, int focusedClient)
+{
+	auto& t = _tags[tag];
+	t.state = state;
+	t.numClients = numClients;
+	t.focusedClient = focusedClient;
+}*/
 
 void Bar::setSelected(bool selected)
 {
@@ -150,10 +178,36 @@ void Bar::setLayout(const std::string& layout)
 {
 	_layoutCmp.setText(layout);
 }
-void Bar::setTitle(const std::string& title)
+/*void Bar::setTitle(const std::string& title)
 {
 	_titleCmp.setText(title);
+}*/
+
+void Bar::setTitle(const std::string& title)
+{
+	if (title.empty()) {
+		_titleCmp.setText("");
+		return;
+	}
+
+	// Escape raw special XML characters so Pango won't crash on window names like "Google & Maps"
+	std::string escaped;
+	escaped.reserve(title.size());
+	for (char c : title) {
+		switch (c) {
+			case '&':  escaped.append("&amp;");   break;
+			case '<':  escaped.append("&lt;");    break;
+			case '>':  escaped.append("&gt;");    break;
+			case '"':  escaped.append("&quot;");  break;
+			case '\'': escaped.append("&apos;");  break;
+			default:   escaped.push_back(c);      break;
+		}
+	}
+
+	// Safely pass the bold tags to our explicit markup handler
+	_titleCmp.setMarkup("<b>" + escaped + "</b>");
 }
+
 void Bar::setStatus(const std::string& status)
 {
 	_statusCmp.setText(status);
@@ -226,7 +280,11 @@ void Bar::render()
 
 	renderTags();
 	setColorScheme(_selected ? colorActive : colorInactive);
-	renderComponent(_layoutCmp);
+
+
+	//renderComponent(_layoutCmp);
+	
+
 	renderComponent(_titleCmp);
 	renderStatus();
 
@@ -238,7 +296,7 @@ void Bar::render()
 	_invalid = false;
 }
 
-void Bar::renderTags()
+/*void Bar::renderTags()
 {
 	for (auto &tag : _tags) {
 		setColorScheme(
@@ -255,7 +313,20 @@ void Bar::renderTags()
 			cairo_stroke(_painter);
 		}
 	}
+}*/
+
+void Bar::renderTags()
+{
+	for (auto &tag : _tags) {
+		setColorScheme(
+			tag.state & TagState::Active ? colorActive : colorInactive,
+			tag.state & TagState::Urgent);
+		
+		// Simply draw the text label as it is configured
+		renderComponent(tag.component);
+	}
 }
+
 
 void Bar::renderStatus()
 {

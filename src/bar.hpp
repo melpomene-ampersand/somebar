@@ -17,6 +17,7 @@ public:
 	explicit BarComponent(wl_unique_ptr<PangoLayout> layout);
 	int width() const;
 	void setText(const std::string& text);
+	void setMarkup(const std::string& text);
 	wl_unique_ptr<PangoLayout> pangoLayout;
 	int x {0};
 };
