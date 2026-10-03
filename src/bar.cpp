@@ -183,6 +183,8 @@ void Bar::setLayout(const std::string& layout)
 	_titleCmp.setText(title);
 }*/
 
+
+
 void Bar::setTitle(const std::string& title)
 {
 	if (title.empty()) {
@@ -190,10 +192,30 @@ void Bar::setTitle(const std::string& title)
 		return;
 	}
 
-	// Escape raw special XML characters so Pango won't crash on window names like "Google & Maps"
+	// 1. Process UTF-8 characters safely to count up to 40 characters
+	std::string processedTitle = title;
+	size_t charCount = 0;
+	size_t byteIdx = 0;
+
+	while (byteIdx < title.size() && charCount < 85) {
+		unsigned char c = title[byteIdx];
+		// Track standard UTF-8 variable byte bounds
+		if (c < 0x80)         byteIdx += 1;
+		else if (c < 0xE0)    byteIdx += 2;
+		else if (c < 0xF0)    byteIdx += 3;
+		else                  byteIdx += 4;
+		charCount++;
+	}
+
+	// If the string length extends past 40 structural characters, cut and append ellipsis
+	if (byteIdx < title.size()) {
+		processedTitle = title.substr(0, byteIdx) + "...";
+	}
+
+	// 2. Escape raw special XML characters so Pango won't crash on window names like "Google & Maps"
 	std::string escaped;
-	escaped.reserve(title.size());
-	for (char c : title) {
+	escaped.reserve(processedTitle.size());
+	for (char c : processedTitle) {
 		switch (c) {
 			case '&':  escaped.append("&amp;");   break;
 			case '<':  escaped.append("&lt;");    break;
@@ -207,6 +229,8 @@ void Bar::setTitle(const std::string& title)
 	// Safely pass the bold tags to our explicit markup handler
 	_titleCmp.setMarkup("<b>" + escaped + "</b>");
 }
+
+
 
 void Bar::setStatus(const std::string& status)
 {
